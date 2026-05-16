@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>最後一週事件拼圖</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
+  background: linear-gradient(135deg, #f4ede0 0%, #e8d5b5 100%);
+  min-height: 100vh;
+  padding: 16px;
+}
+
+h1 {
+  text-align: center;
+  font-size: 1.7rem;
+  color: #5a3a1a;
+  margin-bottom: 4px;
+  letter-spacing: 3px;
+}
+
+.subtitle {
+  text-align: center;
+  color: #8a6a4a;
+  font-size: 0.9rem;
+  margin-bottom: 14px;
+}
+
+/* Card pool */
+#card-pool {
+  background: #fff8ee;
+  border: 2px dashed #c9a87c;
+  border-radius: 12px;
+  padding: 12px 12px 8px;
+  min-height: 110px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  position: relative;
+}
+
+.pool-label {
+  width: 100%;
+  text-align: center;
+  color: #a07040;
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+/* Piece card */
+.piece {
+  width: 128px;
+  height: 72px;
+  border-radius: 8px;
+  border: 2px solid #c9a87c;
+  cursor: grab;
+  user-select: none;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: transform 0.15s, box-shadow 0.15s;
+  background: #f0e0c0;
+}
+
+.piece img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.piece:hover { transform: scale(1.07); box-shadow: 0 4px 14px rgba(0,0,0,0.28); }
+.piece.dragging { opacity: 0.45; transform: scale(1.1); cursor: grabbing; }
+
+/* Grid wrapper */
+#puzzle-grid { overflow-x: auto; padding-bottom: 8px; }
+
+table {
+  border-collapse: separate;
+  border-spacing: 6px;
+  margin: 0 auto;
+}
+
+th {
+  background: #7a4a1a;
+  color: #ffe8b0;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Day label cell */
+.day-cell {
+  width: 128px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid #8b5a2b;
+}
+
+.day-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Drop zone */
+.drop-zone {
+  width: 128px;
+  height: 72px;
+  border: 2px dashed #c9a87c;
+  border-radius: 8px;
+  background: #fff8ee;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+  vertical-align: middle;
+}
+
+.drop-zone.over {
+  background: #ffe8c0;
+  border-color: #e67e22;
+  border-style: solid;
+}
+
+.drop-zone.correct-zone {
+  border: 2px solid #4caf50;
+  background: #f0fff4;
+}
+
+.drop-zone.wrong-zone {
+  border: 2px solid #f44336;
+  background: #fff5f5;
+}
+
+.drop-zone .piece {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 6px;
+  cursor: grab;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.drop-zone .piece:hover {
+  transform: none !important;
+  opacity: 0.85;
+}
+
+/* Empty filler */
+.empty-cell {
+  width: 128px;
+  height: 72px;
+  background: transparent;
+}
+
+/* Buttons */
+.btn-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+button {
+  padding: 9px 22px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: bold;
+  letter-spacing: 1px;
+  transition: transform 0.1s, box-shadow 0.15s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+button:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.25); }
+button:active { transform: scale(0.96); }
+
+#btn-check  { background: #e67e22; color: white; }
+#btn-reset  { background: #7f8c8d; color: white; }
+#btn-reveal { background: #27ae60; color: white; }
+
+/* Result + progress */
+#result-msg {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: bold;
+  min-height: 26px;
+  color: #5a3a1a;
+  margin-bottom: 6px;
+}
+
+#progress-bar-wrap {
+  width: 280px;
+  margin: 0 auto 10px;
+  background: #ddd;
+  border-radius: 8px;
+  height: 8px;
+  overflow: hidden;
+}
+#progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #f39c12, #27ae60);
+  border-radius: 8px;
+  transition: width 0.4s ease;
+}
+
+/* Confetti */
+.confetti-piece {
+  position: fixed;
+  border-radius: 2px;
+  opacity: 0;
+  pointer-events: none;
+  animation: cffall 2.2s ease-in forwards;
+}
+@keyframes cffall {
+  0%   { opacity: 1; transform: translateY(-10px) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(105vh) rotate(800deg); }
+}
+
+td { vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<h1>✝ 最後一週事件拼圖</h1>
+<p class="subtitle">將事件卡片拖曳到正確的日期欄位中</p>
+
+<div id="result-msg"></div>
+<div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+
+<div class="btn-row">
+  <button id="btn-check">對答案 ✓</button>
+  <button id="btn-reset">重新開始 ↺</button>
+  <button id="btn-reveal">顯示答案 ★</button>
+</div>
+
+<div id="card-pool">
+  <div class="pool-label">── 事件卡片（從這裡拖曳到下方格子）──</div>
+</div>
+
+<div id="puzzle-grid">
+  <table id="grid-table">
+    <thead>
+      <tr>
+        <th>日期</th>
+        <th>事件 1</th>
+        <th>事件 2</th>
+        <th>事件 3</th>
+        <th>事件 4</th>
+      </tr>
+    </thead>
+    <tbody id="grid-body"></tbody>
+  </table>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────
+const DAY_IMAGES = {
+  '禮拜日_1': 'images/image10.jpeg',
+  '禮拜一':   'images/image11.jpeg',
+  '禮拜二':   'images/image12.jpeg',
+  '禮拜三':   'images/image13.jpeg',
+  '禮拜四':   'images/image14.jpeg',
+  '禮拜五':   'images/image15.jpeg',
+  '禮拜六':   'images/image16.jpeg',
+  '禮拜日_2': 'images/image10.jpeg',
+};
+
+const PIECES = [
+  { id:'p17', img:'images/image17.jpeg', label:'榮進耶路撒冷' },
+  { id:'p19', img:'images/image19.jpeg', label:'耶穌咒詛不結果的無花果樹' },
+  { id:'p21', img:'images/image21.jpeg', label:'潔淨聖殿' },
+  { id:'p23', img:'images/image23.jpeg', label:'聖殿內爭辯' },
+  { id:'p25', img:'images/image25.jpeg', label:'指責文士與法利賽人' },
+  { id:'p20', img:'images/image20.jpeg', label:'橄欖山教訓' },
+  { id:'p18', img:'images/image18.jpeg', label:'為耶路撒冷哀哭' },
+  { id:'p22', img:'images/image22.jpeg', label:'耶穌休息' },
+  { id:'p24', img:'images/image24.jpeg', label:'猶大賣主' },
+  { id:'p26', img:'images/image26.jpeg', label:'晚餐大樓講道' },
+  { id:'p3',  img:'images/image3.jpeg',  label:'主的晚餐' },
+  { id:'p5',  img:'images/image5.jpeg',  label:'客西馬尼園' },
+  { id:'p4',  img:'images/image4.jpeg',  label:'受審宗教與官府' },
+  { id:'p8',  img:'images/image8.jpeg',  label:'被釘十字架' },
+  { id:'p9',  img:'images/image9.jpeg',  label:'埋葬' },
+  { id:'p6',  img:'images/image6.jpeg',  label:'在墳墓裡' },
+  { id:'p7',  img:'images/image7.jpeg',  label:'復活' },
+];
+
+// Correct layout derived from PPTX answer slide
+// null = no drop zone (empty cell)
+const ROWS = [
+  { dayKey:'禮拜日_1', slots:['p17',  null,  null,  null] },
+  { dayKey:'禮拜一',   slots:['p19',  'p21', null,  null] },
+  { dayKey:'禮拜二',   slots:['p23',  'p25', 'p20', 'p18'] },
+  { dayKey:'禮拜三',   slots:['p22',  'p24', null,  null] },
+  { dayKey:'禮拜四',   slots:['p26',  'p3',  'p5',  null] },
+  { dayKey:'禮拜五',   slots:['p4',   'p8',  'p9',  null] },
+  { dayKey:'禮拜六',   slots:['p6',   null,  null,  null] },
+  { dayKey:'禮拜日_2', slots:['p7',   null,  null,  null] },
+];
+
+// ── State ─────────────────────────────────────────────────────────────────
+let draggedPieceId = null;
+let draggedFrom    = null;
+const placed = {};  // slotId -> pieceId
+
+const pieceMap = {};
+PIECES.forEach(p => pieceMap[p.id] = p);
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function countSlots() {
+  return ROWS.reduce((acc, r) => acc + r.slots.filter(s => s !== null).length, 0);
+}
+
+function updateProgress() {
+  const total  = countSlots();
+  const filled = Object.keys(placed).length;
+  document.getElementById('progress-bar').style.width = Math.round(filled/total*100) + '%';
+  if (filled === total) {
+    document.getElementById('result-msg').textContent = '所有格子已填滿！點「對答案」確認 🎉';
+  } else {
+    document.getElementById('result-msg').textContent = '已放置 ' + filled + ' / ' + total + ' 張';
+  }
+}
+
+// ── Piece element ──────────────────────────────────────────────────────────
+function makePieceEl(piece) {
+  const div = document.createElement('div');
+  div.className = 'piece';
+  div.draggable = true;
+  div.dataset.pieceId = piece.id;
+  div.title = piece.label;
+
+  const img = document.createElement('img');
+  img.src = piece.img;
+  img.alt = piece.label;
+  div.appendChild(img);
+
+  div.addEventListener('dragstart', e => {
+    draggedPieceId = piece.id;
+    draggedFrom    = div.parentElement;
+    setTimeout(() => div.classList.add('dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  div.addEventListener('dragend', () => div.classList.remove('dragging'));
+
+  addTouchDrag(div, piece.id);
+  return div;
+}
+
+// ── Pool ───────────────────────────────────────────────────────────────────
+function buildPool(resetAll) {
+  const pool = document.getElementById('card-pool');
+  const label = pool.querySelector('.pool-label');
+  pool.innerHTML = '';
+  pool.appendChild(label);
+
+  const placedIds = new Set(Object.values(placed));
+  const toShow = resetAll
+    ? PIECES
+    : PIECES.filter(p => !placedIds.has(p.id));
+
+  shuffle(toShow).forEach(p => pool.appendChild(makePieceEl(p)));
+  setupPoolDrop(pool);
+}
+
+function setupPoolDrop(pool) {
+  pool.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+  pool.addEventListener('drop', e => {
+    e.preventDefault();
+    if (!draggedPieceId) return;
+
+    // Return from slot to pool
+    if (draggedFrom && draggedFrom.classList.contains('drop-zone')) {
+      const slotId = draggedFrom.dataset.slotId;
+      delete placed[slotId];
+      draggedFrom.innerHTML = '';
+      draggedFrom.classList.remove('correct-zone', 'wrong-zone');
+    }
+
+    // Add to pool if not already there
+    if (!pool.querySelector('[data-piece-id="' + draggedPieceId + '"]')) {
+      pool.appendChild(makePieceEl(pieceMap[draggedPieceId]));
+    }
+
+    draggedPieceId = null;
+    draggedFrom    = null;
+    updateProgress();
+  });
+}
+
+// ── Grid ───────────────────────────────────────────────────────────────────
+function buildGrid() {
+  const tbody = document.getElementById('grid-body');
+  tbody.innerHTML = '';
+
+  ROWS.forEach((row, rowIdx) => {
+    const tr = document.createElement('tr');
+
+    // Day label
+    const dayTd = document.createElement('td');
+    const dayDiv = document.createElement('div');
+    dayDiv.className = 'day-cell';
+    const dayImg = document.createElement('img');
+    dayImg.src = DAY_IMAGES[row.dayKey];
+    dayImg.alt = row.dayKey.replace(/_\d/, '');
+    dayDiv.appendChild(dayImg);
+    dayTd.appendChild(dayDiv);
+    tr.appendChild(dayTd);
+
+    // Slot cells
+    row.slots.forEach((correctId, slotIdx) => {
+      const td = document.createElement('td');
+
+      if (correctId === null) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-cell';
+        td.appendChild(empty);
+      } else {
+        const slotId = 'slot_' + rowIdx + '_' + slotIdx;
+        const zone = document.createElement('div');
+        zone.className = 'drop-zone';
+        zone.dataset.slotId   = slotId;
+        zone.dataset.correctId = correctId;
+        td.appendChild(zone);
+
+        zone.addEventListener('dragover', e => {
+          e.preventDefault();
+          zone.classList.add('over');
+        });
+        zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+        zone.addEventListener('drop', handleDrop.bind(null, zone));
+      }
+
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+function handleDrop(zone, e) {
+  if (e && e.preventDefault) e.preventDefault();
+  zone.classList.remove('over');
+  if (!draggedPieceId) return;
+
+  const slotId = zone.dataset.slotId;
+  const pool   = document.getElementById('card-pool');
+
+  // Existing piece in this zone → return to pool
+  const existingId = placed[slotId];
+  if (existingId && existingId !== draggedPieceId) {
+    if (!pool.querySelector('[data-piece-id="' + existingId + '"]')) {
+      pool.appendChild(makePieceEl(pieceMap[existingId]));
+    }
+  }
+
+  // Remove from previous slot
+  if (draggedFrom && draggedFrom.classList.contains('drop-zone') && draggedFrom !== zone) {
+    const prevSlot = draggedFrom.dataset.slotId;
+    delete placed[prevSlot];
+    draggedFrom.innerHTML = '';
+    draggedFrom.classList.remove('correct-zone', 'wrong-zone');
+  }
+
+  // Remove from pool
+  const inPool = pool.querySelector('[data-piece-id="' + draggedPieceId + '"]');
+  if (inPool) inPool.remove();
+
+  // Place in zone
+  placed[slotId] = draggedPieceId;
+  zone.innerHTML = '';
+  zone.appendChild(makePieceEl(pieceMap[draggedPieceId]));
+  zone.classList.remove('correct-zone', 'wrong-zone');
+
+  draggedPieceId = null;
+  draggedFrom    = null;
+  updateProgress();
+}
+
+// ── Check ──────────────────────────────────────────────────────────────────
+document.getElementById('btn-check').addEventListener('click', () => {
+  const zones = document.querySelectorAll('.drop-zone');
+  let correct = 0, filled = 0, total = countSlots();
+
+  zones.forEach(zone => {
+    const slotId    = zone.dataset.slotId;
+    const correctId = zone.dataset.correctId;
+    const current   = placed[slotId];
+    zone.classList.remove('correct-zone', 'wrong-zone');
+    if (current) {
+      filled++;
+      if (current === correctId) { correct++; zone.classList.add('correct-zone'); }
+      else                       { zone.classList.add('wrong-zone'); }
+    }
+  });
+
+  const msg = document.getElementById('result-msg');
+  if (correct === total) {
+    msg.textContent = '🎊 全部正確！耶穌最後一週的事件全對了！';
+    launchConfetti();
+  } else if (filled === 0) {
+    msg.textContent = '請先把事件卡片拖到格子裡喔！';
+  } else {
+    msg.textContent = '✅ 答對 ' + correct + ' 格　❌ 答錯 ' + (filled-correct) + ' 格　🕳 空白 ' + (total-filled) + ' 格';
+  }
+});
+
+// ── Reset ──────────────────────────────────────────────────────────────────
+document.getElementById('btn-reset').addEventListener('click', () => {
+  Object.keys(placed).forEach(k => delete placed[k]);
+  document.querySelectorAll('.drop-zone').forEach(z => {
+    z.innerHTML = '';
+    z.classList.remove('correct-zone', 'wrong-zone');
+  });
+  buildPool(true);
+  document.getElementById('result-msg').textContent = '';
+  document.getElementById('progress-bar').style.width = '0%';
+});
+
+// ── Reveal ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-reveal').addEventListener('click', () => {
+  Object.keys(placed).forEach(k => delete placed[k]);
+  const pool  = document.getElementById('card-pool');
+  const label = pool.querySelector('.pool-label');
+  pool.innerHTML = '';
+  pool.appendChild(label);
+
+  document.querySelectorAll('.drop-zone').forEach(zone => {
+    zone.innerHTML = '';
+    zone.classList.remove('correct-zone', 'wrong-zone');
+    const correctId = zone.dataset.correctId;
+    const slotId    = zone.dataset.slotId;
+    placed[slotId]  = correctId;
+    zone.appendChild(makePieceEl(pieceMap[correctId]));
+    zone.classList.add('correct-zone');
+  });
+
+  document.getElementById('result-msg').textContent = '✅ 這是正確答案！';
+  document.getElementById('progress-bar').style.width = '100%';
+});
+
+// ── Confetti ───────────────────────────────────────────────────────────────
+function launchConfetti() {
+  const colors = ['#f39c12','#e74c3c','#3498db','#2ecc71','#9b59b6','#1abc9c','#f1c40f'];
+  for (let i = 0; i < 90; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    const sz = 7 + Math.random() * 9;
+    el.style.cssText = [
+      'left:'  + Math.random() * 100 + 'vw',
+      'top:-15px',
+      'width:' + sz + 'px',
+      'height:' + sz + 'px',
+      'background:' + colors[Math.floor(Math.random() * colors.length)],
+      'animation-delay:' + Math.random() * 1.6 + 's',
+    ].join(';');
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+}
+
+// ── Touch drag support ─────────────────────────────────────────────────────
+let touchClone = null;
+
+function addTouchDrag(el, pieceId) {
+  el.addEventListener('touchstart', e => {
+    e.preventDefault();
+    draggedPieceId = pieceId;
+    draggedFrom    = el.parentElement;
+    const t = e.touches[0];
+    const r = el.getBoundingClientRect();
+
+    touchClone = el.cloneNode(true);
+    Object.assign(touchClone.style, {
+      position: 'fixed', zIndex: '9999', opacity: '0.82',
+      pointerEvents: 'none', borderRadius: '8px', overflow: 'hidden',
+      width: r.width + 'px', height: r.height + 'px',
+      left: (t.clientX - r.width/2) + 'px',
+      top:  (t.clientY - r.height/2) + 'px',
+    });
+    document.body.appendChild(touchClone);
+  }, { passive: false });
+
+  el.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (!touchClone) return;
+    const t = e.touches[0];
+    const w = parseFloat(touchClone.style.width);
+    const h = parseFloat(touchClone.style.height);
+    touchClone.style.left = (t.clientX - w/2) + 'px';
+    touchClone.style.top  = (t.clientY - h/2) + 'px';
+  }, { passive: false });
+
+  el.addEventListener('touchend', e => {
+    if (touchClone) { touchClone.remove(); touchClone = null; }
+    const t    = e.changedTouches[0];
+    const elem = document.elementFromPoint(t.clientX, t.clientY);
+    const zone = elem && elem.closest('.drop-zone');
+    const pool = document.getElementById('card-pool');
+
+    if (zone) {
+      handleDrop(zone, null);
+    } else if (elem && (elem === pool || pool.contains(elem))) {
+      pool.dispatchEvent(new Event('drop'));
+    } else {
+      draggedPieceId = null;
+      draggedFrom    = null;
+    }
+  }, { passive: false });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+buildGrid();
+buildPool(true);
+updateProgress();
+</script>
+</body>
+</html>
