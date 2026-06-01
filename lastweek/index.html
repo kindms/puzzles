@@ -221,6 +221,7 @@ function buildGrid() {
         zone.className = 'drop-zone';
         zone.dataset.slotId = slotId;
         zone.dataset.correctId = correctId;
+        zone.dataset.rowIdx = rowIdx;
         td.appendChild(zone);
         zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
         zone.addEventListener('dragleave', () => zone.classList.remove('over'));
@@ -257,6 +258,9 @@ function handleDrop(zone, e) {
   updateProgress();
 }
 
+// 每列的合法答案集合（同一列放哪個位置都算對）
+const ROW_CORRECT_SETS = ROWS.map(row => new Set(row.slots.filter(s => s !== null)));
+
 document.getElementById('btn-check').addEventListener('click', () => {
   const zones = document.querySelectorAll('.drop-zone');
   let correct=0, filled=0, total=countSlots();
@@ -265,7 +269,8 @@ document.getElementById('btn-check').addEventListener('click', () => {
     zone.classList.remove('correct-zone','wrong-zone');
     if (current) {
       filled++;
-      if (current === zone.dataset.correctId) { correct++; zone.classList.add('correct-zone'); }
+      const rowIdx = parseInt(zone.dataset.rowIdx);
+      if (ROW_CORRECT_SETS[rowIdx].has(current)) { correct++; zone.classList.add('correct-zone'); }
       else zone.classList.add('wrong-zone');
     }
   });
